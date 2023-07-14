@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, create_dir, remove_file, File};
 use std::io::{self, BufRead, BufReader, Error, Write};
 use std::process::{ChildStdout, Command, Stdio};
+use std::sync::mpsc;
 use std::thread::{self};
 //yt-dlp --version -> 2023.07.06
 type Url<'a> = &'a str;
@@ -41,6 +42,7 @@ fn get_info(url: Url, split: &str, info: Vec<&str>) -> io::Result<HashMap<String
             param.push_str(split);
         }
     }
+
     let cmd = Command::new("yt-dlp")
         .args(vec![url, "--print", &param])
         .output()?
@@ -62,6 +64,9 @@ struct OutputSaver {
 }
 impl OutputSaver {
     fn save_output(self) -> io::Result<()> {
+        create_dir("music/.downloads/")
+            .unwrap_or_else(|e| eprintln!("Error creating new dir: {e}"));
+
         let mut file = File::create(&self.filename)?;
 
         let reader = BufReader::new(self.stdout);
@@ -71,16 +76,17 @@ impl OutputSaver {
             file.write_all(line.as_bytes())?;
             file.write_all(b"\n")?;
         }
+
         Ok(())
     }
 }
 
 fn download_music(url: Url) -> io::Result<()> {
     println!("Downloading: {url}");
+    let map = get_info(url, "<split>", vec!["id"]).expect("Couldnt grab id");
+    let id = map.get("id").expect("Couldnt grab id from map");
 
-    let id = url.split('/').last().expect("Couldnt grab last item");
-
-    if fs::metadata(format!("assets/{id}")).is_ok() {
+    if fs::metadata(format!("music/{id}")).is_ok() {
         eprintln!("Music Already exists: {id}");
         return Ok(());
     }
@@ -99,7 +105,7 @@ fn download_music(url: Url) -> io::Result<()> {
         .spawn()?;
 
     let output_saver = OutputSaver {
-        filename: format!("{id}.txt"),
+        filename: format!("music/.downloads/{id}.txt"),
         stdout: cmd.stdout.take().unwrap(),
     };
 
@@ -113,9 +119,10 @@ fn download_music(url: Url) -> io::Result<()> {
         .join()
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to join output thread"))?;
 
-    remove_file(format!("{id}.txt")).unwrap_or_else(|e| eprintln!("Remove File: {e}"));
+    remove_file(format!("music/.downloads/{id}.txt"))
+        .unwrap_or_else(|e| eprintln!("Remove File: {e}"));
 
-    create_json(url)
+    create_json(id)
 }
 
 fn create_json(url: Url) -> io::Result<()> {
@@ -154,27 +161,53 @@ fn download_playlist(url: Url, path: &str) -> io::Result<()> {
     create_dir("music/").unwrap_or_else(|e| eprintln!("Error creating new dir: {e}"));
     create_dir(playlist_location).unwrap_or_else(|e| eprintln!("Error creating new dir: {e}"));
 
-    let info = get_info(url, "<split>", vec!["webpage_url"])?;
+    //let info = get_info(url, "<split>", vec!["webpage_url"])?;
     let mut file = File::create(path)?;
 
     let mut playlist_info = BTreeMap::new();
 
     let mut handles = vec![];
 
-    info.get("webpage_url")
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Webpage url not found"))?
-        .split("https://www.youtube.com/watch?v=")
-        .enumerate()
-        .for_each(|(i, v)| {
-            if !v.is_empty() {
-                let v = v.trim_end().to_string();
-                playlist_info.insert(i, v.clone());
-                let handle = thread::spawn(move || {
-                    download_music(&v).unwrap_or_else(|_| eprintln!("Problem Downloading: {v}"));
-                });
-                handles.push(handle)
+    let (tx, rx) = mpsc::channel();
+    let string_url = url.to_string();
+    // spawn thread for running the command
+    let t = thread::spawn(move || {
+        let process = Command::new("yt-dlp")
+            .arg(string_url)
+            .arg("--newline")
+            .arg("--print")
+            .arg("%(webpage_url)s")
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("failed to execute process");
+
+        let output = process.stdout.expect("Failed to open process stdout");
+
+        // iterate over stdout, sending each line down the channel
+        BufReader::new(output).lines().for_each(|line| {
+            if let Ok(line) = line {
+                tx.send(line).expect("Could not send data over channel");
             }
         });
+    });
+    handles.push(t);
+
+    // receive output on the consumer side and print each line
+    for (i, v) in rx.iter().enumerate() {
+        let map = get_info(&v, "<split>", vec!["id"]).expect("Couldnt grab id");
+
+        let id = map
+            .get("id")
+            .expect("Couldnt grab id from map")
+            .trim_end()
+            .to_string();
+
+        playlist_info.insert(i, id);
+        let handle = thread::spawn(move || {
+            download_music(&v).unwrap_or_else(|_| eprintln!("Problem Downloading: {v}"));
+        });
+        handles.push(handle)
+    }
 
     let playlist_str = serde_json::to_string(&playlist_info)?;
     file.write_all(playlist_str.as_bytes())?;
