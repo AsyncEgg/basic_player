@@ -6,7 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+audiopus = "0.2.0"
 crossterm = "0.26.1"
 ratatui = { version = "0.21.0", features = ["all-widgets"] }
+rodio = "0.17.1"
 serde = { version = "1.0.171", features = ["derive"] }
 serde_json = "1.0.102"
