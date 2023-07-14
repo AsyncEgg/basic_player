@@ -4,6 +4,7 @@ use std::io::{self, BufRead, BufReader, Error, Write};
 use std::process::{ChildStdout, Command, Stdio};
 use std::sync::mpsc;
 use std::thread::{self};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -96,18 +97,45 @@ impl OutputSaver {
     }
 }
 
+fn check_extension_in_dir(dir: &str, ext: &str) -> io::Result<bool> {
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+
+        if format!("{entry:?}").contains(ext) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn convert_opus(original: &str, new: &str) -> io::Result<()> {
+    Command::new("ffmpeg")
+        .args(vec![
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            original,
+            "-acodec",
+            "libvorbis",
+            new,
+        ])
+        .output()?;
+    thread::sleep(Duration::from_secs(3));
+    Command::new("rm").arg(original).output()?;
+    println!("ffmpeg finish {original}");
+    Ok(())
+}
+
 pub fn download_music(url: Url) -> io::Result<()> {
     // Get info
     println!("Downloading: {url}");
-    let map = get_info(url, "<split>", vec!["id", "title"]).expect("Couldnt grab info");
+    let map = get_info(url, "<split>", vec!["id"]).expect("Couldnt grab info");
     let id = map.get("id").expect("Couldnt grab id from map").trim_end();
-    let title = map
-        .get("title")
-        .expect("Couldnt grab title from map")
-        .trim_end();
     // Check if music already exists
     //I would just use json here but im lazy
-    if fs::metadata(format!("music/{}/{title}.mp3", id)).is_ok() {
+    if check_extension_in_dir(&format!("music/{id}/"), ".opus").is_ok() {
         eprintln!("Music Already exists: {id}");
         return Ok(());
     }
@@ -118,7 +146,7 @@ pub fn download_music(url: Url) -> io::Result<()> {
             url,
             "-x",
             "-o",
-            "music/%(id)s/%(title)s",
+            "music/%(id)s/%(id)s",
             "--progress",
             "--newline",
             "--write-thumbnail",
@@ -138,8 +166,12 @@ pub fn download_music(url: Url) -> io::Result<()> {
     // Delete output file
     remove_file(format!(".temp/{id}.temp")).unwrap_or_else(|e| eprintln!("Remove File: {e}"));
 
+    //TODO Convert audio from opus to ogg
+    let path = format!("music/{id}/{id}");
+    thread::spawn(move || convert_opus(&format!("{path}.opus"), &format!("{path}.ogg")));
     // Generate json info for the song
-    create_json(id)
+    create_json(id)?;
+    Ok(())
 }
 
 pub fn create_json(url: Url) -> io::Result<()> {

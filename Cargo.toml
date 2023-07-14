@@ -6,8 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-audiopus = "0.2.0"
+audiopus = "0.3.0-rc.0"
 crossterm = "0.26.1"
+lewton = "0.10.2"
+ogg = "0.7.0"
 ratatui = { version = "0.21.0", features = ["all-widgets"] }
 rodio = "0.17.1"
 serde = { version = "1.0.171", features = ["derive"] }
