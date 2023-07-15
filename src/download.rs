@@ -122,7 +122,7 @@ fn convert_opus(original: &str, new: &str) -> io::Result<()> {
             new,
         ])
         .output()?;
-    thread::sleep(Duration::from_secs(3));
+
     Command::new("rm").arg(original).output()?;
     println!("ffmpeg finish {original}");
     Ok(())
@@ -135,7 +135,7 @@ pub fn download_music(url: Url) -> io::Result<()> {
     let id = map.get("id").expect("Couldnt grab id from map").trim_end();
     // Check if music already exists
     //I would just use json here but im lazy
-    if check_extension_in_dir(&format!("music/{id}/"), ".opus").is_ok() {
+    if check_extension_in_dir(&format!("music/{id}/"), ".ogg").is_ok() {
         eprintln!("Music Already exists: {id}");
         return Ok(());
     }
