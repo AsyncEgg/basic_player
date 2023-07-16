@@ -4,7 +4,6 @@ use std::io::{self, BufRead, BufReader, Error, Write};
 use std::process::{ChildStdout, Command, Stdio};
 use std::sync::mpsc;
 use std::thread::{self};
-use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -100,7 +99,6 @@ impl OutputSaver {
 fn check_extension_in_dir(dir: &str, ext: &str) -> io::Result<bool> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
-
         if format!("{entry:?}").contains(ext) {
             return Ok(true);
         }
@@ -109,22 +107,43 @@ fn check_extension_in_dir(dir: &str, ext: &str) -> io::Result<bool> {
     Ok(false)
 }
 
-fn convert_opus(original: &str, new: &str) -> io::Result<()> {
+fn convert_opus(id: &str) -> io::Result<()> {
+    //ffmpeg -i music/U8gKLveIvuk/song.opus -c:a libvorbis music/U8gKLveIvuk/song.ogg
+    //ffmpeg -i music/U8gKLveIvuk/song.ogg -c copy -map 0 -segment_time 60 -f segment -reset_timestamps 1 music/U8gKLveIvuk/parts/%03d.ogg
+    //
     Command::new("ffmpeg")
         .args(vec![
             "-hide_banner",
             "-loglevel",
             "error",
             "-i",
-            original,
-            "-acodec",
+            &format!("music/{id}/song.opus"),
+            "-c:a",
             "libvorbis",
-            new,
+            &format!("music/{id}/song.ogg"),
         ])
         .output()?;
 
-    Command::new("rm").arg(original).output()?;
-    println!("ffmpeg finish {original}");
+    Command::new("ffmpeg")
+        .args(vec![
+            "-i",
+            &format!("music/{id}/song.ogg"),
+            "-c",
+            "copy",
+            "-map",
+            "0",
+            "-segment_time",
+            "60",
+            "-f",
+            "segment",
+            "-reset_timestamps",
+            "1",
+            &format!("music/{id}/parts/%03d.ogg"),
+        ])
+        .output()?;
+
+    //Command::new("rm").arg(original).output()?;
+    println!("ffmpeg finish {id}");
     Ok(())
 }
 
@@ -135,10 +154,13 @@ pub fn download_music(url: Url) -> io::Result<()> {
     let id = map.get("id").expect("Couldnt grab id from map").trim_end();
     // Check if music already exists
     //I would just use json here but im lazy
-    if check_extension_in_dir(&format!("music/{id}/"), ".ogg").is_ok() {
-        eprintln!("Music Already exists: {id}");
-        return Ok(());
-    }
+    create_dir(format!("music/{id}/")).unwrap_or(());
+    create_dir(format!("music/{id}/parts/")).unwrap_or(());
+    //todo fix this bs
+    // if check_extension_in_dir(&format!("music/{id}/parts/"), ".ogg").is_ok() {
+    //     eprintln!("Music Already exists: {id}");
+    //     return Ok(());
+    // }
 
     // Grab music and thumbnail
     let mut cmd = Command::new("yt-dlp")
@@ -146,7 +168,7 @@ pub fn download_music(url: Url) -> io::Result<()> {
             url,
             "-x",
             "-o",
-            "music/%(id)s/%(id)s",
+            "music/%(id)s/song",
             "--progress",
             "--newline",
             "--write-thumbnail",
@@ -167,8 +189,8 @@ pub fn download_music(url: Url) -> io::Result<()> {
     remove_file(format!(".temp/{id}.temp")).unwrap_or_else(|e| eprintln!("Remove File: {e}"));
 
     //TODO Convert audio from opus to ogg
-    let path = format!("music/{id}/{id}");
-    thread::spawn(move || convert_opus(&format!("{path}.opus"), &format!("{path}.ogg")));
+    let move_id = id.to_string();
+    thread::spawn(move || convert_opus(&move_id));
     // Generate json info for the song
     create_json(id)?;
     Ok(())
