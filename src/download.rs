@@ -117,28 +117,10 @@ fn convert_opus(id: &str) -> io::Result<()> {
             "-loglevel",
             "error",
             "-i",
-            &format!("music/{id}/song.opus"),
+            &format!("music/{id}/input.opus"),
             "-c:a",
             "libvorbis",
-            &format!("music/{id}/song.ogg"),
-        ])
-        .output()?;
-
-    Command::new("ffmpeg")
-        .args(vec![
-            "-i",
-            &format!("music/{id}/song.ogg"),
-            "-c",
-            "copy",
-            "-map",
-            "0",
-            "-segment_time",
-            "60",
-            "-f",
-            "segment",
-            "-reset_timestamps",
-            "1",
-            &format!("music/{id}/parts/%03d.ogg"),
+            &format!("music/{id}/out.ogg"),
         ])
         .output()?;
 
@@ -154,8 +136,6 @@ pub fn download_music(url: Url) -> io::Result<()> {
     let id = map.get("id").expect("Couldnt grab id from map").trim_end();
     // Check if music already exists
     //I would just use json here but im lazy
-    create_dir(format!("music/{id}/")).unwrap_or(());
-    create_dir(format!("music/{id}/parts/")).unwrap_or(());
     //todo fix this bs
     // if check_extension_in_dir(&format!("music/{id}/parts/"), ".ogg").is_ok() {
     //     eprintln!("Music Already exists: {id}");
@@ -168,7 +148,7 @@ pub fn download_music(url: Url) -> io::Result<()> {
             url,
             "-x",
             "-o",
-            "music/%(id)s/song",
+            "music/%(id)s/input",
             "--progress",
             "--newline",
             "--write-thumbnail",
