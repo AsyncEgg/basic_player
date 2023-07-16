@@ -99,6 +99,10 @@ impl OutputSaver {
 fn check_extension_in_dir(dir: &str, ext: &str) -> io::Result<bool> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 79c6e27 (quick git fix)
         if format!("{entry:?}").contains(ext) {
             return Ok(true);
         }
@@ -107,16 +111,21 @@ fn check_extension_in_dir(dir: &str, ext: &str) -> io::Result<bool> {
     Ok(false)
 }
 
+<<<<<<< HEAD
 fn convert_opus(id: &str) -> io::Result<()> {
     //ffmpeg -i music/U8gKLveIvuk/song.opus -c:a libvorbis music/U8gKLveIvuk/song.ogg
     //ffmpeg -i music/U8gKLveIvuk/song.ogg -c copy -map 0 -segment_time 60 -f segment -reset_timestamps 1 music/U8gKLveIvuk/parts/%03d.ogg
     //
+=======
+fn convert_opus(original: &str, new: &str) -> io::Result<()> {
+>>>>>>> 79c6e27 (quick git fix)
     Command::new("ffmpeg")
         .args(vec![
             "-hide_banner",
             "-loglevel",
             "error",
             "-i",
+<<<<<<< HEAD
             &format!("music/{id}/input.opus"),
             "-c:a",
             "libvorbis",
@@ -126,6 +135,17 @@ fn convert_opus(id: &str) -> io::Result<()> {
 
     //Command::new("rm").arg(original).output()?;
     println!("ffmpeg finish {id}");
+=======
+            original,
+            "-acodec",
+            "libvorbis",
+            new,
+        ])
+        .output()?;
+
+    Command::new("rm").arg(original).output()?;
+    println!("ffmpeg finish {original}");
+>>>>>>> 79c6e27 (quick git fix)
     Ok(())
 }
 
@@ -136,11 +156,18 @@ pub fn download_music(url: Url) -> io::Result<()> {
     let id = map.get("id").expect("Couldnt grab id from map").trim_end();
     // Check if music already exists
     //I would just use json here but im lazy
+<<<<<<< HEAD
     //todo fix this bs
     // if check_extension_in_dir(&format!("music/{id}/parts/"), ".ogg").is_ok() {
     //     eprintln!("Music Already exists: {id}");
     //     return Ok(());
     // }
+=======
+    if check_extension_in_dir(&format!("music/{id}/"), ".ogg").is_ok() {
+        eprintln!("Music Already exists: {id}");
+        return Ok(());
+    }
+>>>>>>> 79c6e27 (quick git fix)
 
     // Grab music and thumbnail
     let mut cmd = Command::new("yt-dlp")
@@ -148,7 +175,11 @@ pub fn download_music(url: Url) -> io::Result<()> {
             url,
             "-x",
             "-o",
+<<<<<<< HEAD
             "music/%(id)s/input",
+=======
+            "music/%(id)s/%(id)s",
+>>>>>>> 79c6e27 (quick git fix)
             "--progress",
             "--newline",
             "--write-thumbnail",
@@ -169,8 +200,13 @@ pub fn download_music(url: Url) -> io::Result<()> {
     remove_file(format!(".temp/{id}.temp")).unwrap_or_else(|e| eprintln!("Remove File: {e}"));
 
     //TODO Convert audio from opus to ogg
+<<<<<<< HEAD
     let move_id = id.to_string();
     thread::spawn(move || convert_opus(&move_id));
+=======
+    let path = format!("music/{id}/{id}");
+    thread::spawn(move || convert_opus(&format!("{path}.opus"), &format!("{path}.ogg")));
+>>>>>>> 79c6e27 (quick git fix)
     // Generate json info for the song
     create_json(id)?;
     Ok(())
