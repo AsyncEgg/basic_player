@@ -99,6 +99,7 @@ impl OutputSaver {
 fn check_extension_in_dir(dir: &str, ext: &str) -> io::Result<bool> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
+
         if format!("{entry:?}").contains(ext) {
             return Ok(true);
         }
