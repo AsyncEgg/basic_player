@@ -1,20 +1,3 @@
-<<<<<<< HEAD
-use download::{create_json_for_music, download_music, download_playlist};
-use play::play_music_new;
-
-use std::{
-    error::Error,
-    thread::{self},
-};
-mod download;
-mod play;
-//yt-dlp --version -> 2023.07.06
-fn main() -> Result<(), Box<dyn Error>> {
-    //download_files()?;
-    play_music_new();
-    Ok(())
-}
-=======
 use chrono::Timelike;
 use device_query::{DeviceQuery, DeviceState, Keycode};
 use download::{create_json_for_music, download_music, download_playlist};
@@ -219,7 +202,6 @@ fn play_music() {
         sleep(SLEEP_DURATION);
     }
 }
->>>>>>> 79c6e27 (quick git fix)
 
 fn download_files() -> Result<(), Box<dyn Error>> {
     let url1 = "https://youtube.com/playlist?list=OLAK5uy_l2T3pMQk8o2vwT1ekRgrbzUkWEPfY8Iao";
