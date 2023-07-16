@@ -78,8 +78,9 @@ fn duation_from_song_duration(song_duration: &str) -> u64 {
 fn play_audio_file(
     stream_handle: &OutputStreamHandle,
     audio_file: &str,
+    skip: Option<Duration>,
 ) -> Result<Sink, Box<dyn Error>> {
-    let sink = setup_sink(stream_handle, audio_file, None);
+    let sink = setup_sink(stream_handle, audio_file, skip);
     sink.play();
     Ok(sink)
 }
@@ -122,15 +123,19 @@ fn play_music() {
             current_audio_file_index = (current_audio_file_index + 1) % audio_files.len();
             println!("{}", current_audio_file_index);
             skip_amount = 0;
-            sink = play_audio_file(&stream_handle, audio_files[current_audio_file_index])
-                .expect("Err playing audio file");
+            sink = play_audio_file(
+                &stream_handle,
+                audio_files[current_audio_file_index],
+                Some(Duration::from_secs(skip_amount)),
+            )
+            .expect("Err playing audio file");
             now = Instant::now();
             saved_time = Duration::from_secs(0); // Reset saved_time when a new song starts
         }
-        // println!(
-        //     "Elapsed: {:?}\nWhere to goto: {skip_amount}\nDuration: {song_duration}",
-        //     now.elapsed().as_secs()
-        // );
+        println!(
+            "Elapsed: {:?}\nWhere to goto: {skip_amount}\nDuration: {song_duration}",
+            now.elapsed().as_secs()
+        );
         let keys: Vec<Keycode> = device_state.get_keys();
         if keys.contains(&Keycode::F9) && last_space_press_time.elapsed() >= KEY_DEBOUNCE {
             toggle_playback(&mut sink);
@@ -163,8 +168,12 @@ fn play_music() {
         if keys.contains(&Keycode::Enter) && last_enter_press_time.elapsed() >= KEY_DEBOUNCE {
             let skip = Duration::from_secs(skip_amount);
 
-            sink = play_audio_file(&stream_handle, audio_files[current_audio_file_index])
-                .expect("Err playing audio file");
+            sink = play_audio_file(
+                &stream_handle,
+                audio_files[current_audio_file_index],
+                Some(Duration::from_secs(skip_amount)),
+            )
+            .expect("Err playing audio file");
             now = Instant::now() - skip;
             last_enter_press_time = Instant::now();
         }
@@ -173,8 +182,12 @@ fn play_music() {
             current_audio_file_index = (current_audio_file_index + 1) % audio_files.len();
             println!("{}", current_audio_file_index);
             skip_amount = 0;
-            sink = play_audio_file(&stream_handle, audio_files[current_audio_file_index])
-                .expect("Err playing audio file");
+            sink = play_audio_file(
+                &stream_handle,
+                audio_files[current_audio_file_index],
+                Some(Duration::from_secs(skip_amount)),
+            )
+            .expect("Err playing audio file");
 
             last_right_press_time = Instant::now();
             now = Instant::now();
@@ -188,8 +201,12 @@ fn play_music() {
             current_audio_file_index = current_audio_file_index.saturating_sub(1);
             println!("{}", current_audio_file_index);
             skip_amount = 0;
-            sink = play_audio_file(&stream_handle, audio_files[current_audio_file_index])
-                .expect("Err playing audio file");
+            sink = play_audio_file(
+                &stream_handle,
+                audio_files[current_audio_file_index],
+                Some(Duration::from_secs(skip_amount)),
+            )
+            .expect("Err playing audio file");
 
             last_left_press_time = Instant::now();
             now = Instant::now();
