@@ -3,6 +3,7 @@ use device_query::{DeviceQuery, DeviceState, Keycode};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeMap,
     error::Error,
     fs::{self, File},
     io::BufReader,
@@ -10,14 +11,17 @@ use std::{
     time::{Duration, Instant},
 };
 
+const VOLUME: f32 = 0.5;
+
 //todo make this faster :p
 fn setup_sink(
     stream_handle: &OutputStreamHandle,
     audio_file: &str,
     skip: Option<Duration>,
+    volume: f32,
 ) -> Sink {
     let sink = Sink::try_new(stream_handle).expect("Couldnt unwrap sink");
-
+    println!("{audio_file}");
     let file = File::open(audio_file).expect("Error opening file");
     let source = Decoder::new(BufReader::new(file)).expect("Error decoding file");
 
@@ -27,7 +31,7 @@ fn setup_sink(
     }
 
     sink.pause(); // start out paused //todo change to sink.play
-
+    sink.set_volume(volume);
     sink
 }
 #[inline]
@@ -70,11 +74,30 @@ fn play_audio_file(
     audio_file: &str,
     skip: Option<Duration>,
 ) -> Result<Sink, Box<dyn Error>> {
-    let sink = setup_sink(stream_handle, audio_file, skip);
+    let sink = setup_sink(stream_handle, audio_file, skip, VOLUME);
     sink.play();
     Ok(sink)
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct SongIds {
+    #[serde(flatten)]
+    inner: BTreeMap<String, String>,
+}
+
+fn get_files_from_json(json_path: &str) -> Vec<String> {
+    let file = File::open(json_path).expect("File should open read only");
+    let reader = BufReader::new(file);
+    let videos: SongIds = serde_json::from_reader(reader).expect("File should be proper JSON");
+
+    videos
+        .inner
+        .values()
+        .cloned()
+        .map(|id| format!("music/{id}/{id}.ogg"))
+        .collect()
+}
+//TODO FIX it so that when music is paused no other song plays whent he duration of the song finishes
 pub fn play_music() {
     println!("playing");
     const KEY_DEBOUNCE: Duration = Duration::from_millis(200);
@@ -82,19 +105,19 @@ pub fn play_music() {
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let device_state = DeviceState::new();
-    let audio_files = vec![
-        // "music/Q_9VMaX61nI/Q_9VMaX61nI.ogg",
-        "music/VZ-gmdcWWZs/VZ-gmdcWWZs.ogg",
-        "music/DUT5rEU6pqM/DUT5rEU6pqM.ogg",
-        // "music/Q_9VMaX61nI/Q_9VMaX61nI.ogg",
-        "music/MFF-diLFhtQ/MFF-diLFhtQ.ogg",
-    ];
+    let audio_files_bind = get_files_from_json("music/.playlists/1.json");
+    let audio_files: Vec<&str> = audio_files_bind.iter().map(|c| c.as_str()).collect();
 
     let mut current_audio_file_index = 0;
-    let mut sink = setup_sink(&stream_handle, audio_files[current_audio_file_index], None);
+    let mut sink = setup_sink(
+        &stream_handle,
+        audio_files[current_audio_file_index],
+        None,
+        VOLUME,
+    );
     let mut last_space_press_time = Instant::now() - KEY_DEBOUNCE;
-    let mut last_right_press_time = Instant::now() - KEY_DEBOUNCE;
-    let mut last_left_press_time = Instant::now() - KEY_DEBOUNCE;
+    let mut last_page_end_press_time = Instant::now() - KEY_DEBOUNCE;
+    let mut last_page_up_press_time = Instant::now() - KEY_DEBOUNCE;
     let mut last_enter_press_time = Instant::now() - KEY_DEBOUNCE;
     let mut now = Instant::now();
     let mut saved_time = Duration::from_secs(0);
@@ -141,13 +164,13 @@ pub fn play_music() {
                 now = Instant::now() - saved_time - Duration::from_secs(2);
             }
         }
-        if keys.contains(&Keycode::Up) {
+        if keys.contains(&Keycode::Home) {
             if skip_amount > song_duration {
                 skip_amount = song_duration
             }
             skip_amount += 1;
         }
-        if keys.contains(&Keycode::Down) {
+        if keys.contains(&Keycode::End) {
             if 0 < skip_amount as i64 {
                 skip_amount -= 1;
             } else {
@@ -168,7 +191,7 @@ pub fn play_music() {
             last_enter_press_time = Instant::now();
         }
 
-        if keys.contains(&Keycode::Right) && last_right_press_time.elapsed() >= KEY_DEBOUNCE {
+        if keys.contains(&Keycode::PageDown) && last_page_end_press_time.elapsed() >= KEY_DEBOUNCE {
             current_audio_file_index = (current_audio_file_index + 1) % audio_files.len();
             println!("{}", current_audio_file_index);
             skip_amount = 0;
@@ -179,12 +202,12 @@ pub fn play_music() {
             )
             .expect("Err playing audio file");
 
-            last_right_press_time = Instant::now();
+            last_page_end_press_time = Instant::now();
             now = Instant::now();
             saved_time = Duration::from_secs(0); // Reset saved_time when a new song starts
         }
 
-        if keys.contains(&Keycode::Left) && last_left_press_time.elapsed() >= KEY_DEBOUNCE {
+        if keys.contains(&Keycode::PageUp) && last_page_up_press_time.elapsed() >= KEY_DEBOUNCE {
             if current_audio_file_index as isize - 1 < 0 {
                 current_audio_file_index = audio_files.len()
             }
@@ -198,7 +221,7 @@ pub fn play_music() {
             )
             .expect("Err playing audio file");
 
-            last_left_press_time = Instant::now();
+            last_page_up_press_time = Instant::now();
             now = Instant::now();
             saved_time = Duration::from_secs(0); // Reset saved_time when a new song starts
         }

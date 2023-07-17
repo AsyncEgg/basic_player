@@ -216,8 +216,6 @@ pub fn download_playlist(url: Url, path: &str) -> io::Result<()> {
 
     // Tx sends each new line (url) to rx to be processed so instead of waiting for the whole thing it downloads quicker
 
-    let mut playlist_info = BTreeMap::new();
-
     let mut handles = vec![];
 
     let (tx, rx) = mpsc::channel();
@@ -245,6 +243,7 @@ pub fn download_playlist(url: Url, path: &str) -> io::Result<()> {
     handles.push(t);
 
     // Receive output on the consumer side and print each line
+    let mut playlist_info = BTreeMap::new();
     for (i, v) in rx.iter().enumerate() {
         let map = get_info(&v, "<split>", vec!["id"]).expect("Couldnt grab id");
 

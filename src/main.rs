@@ -6,8 +6,8 @@ mod download;
 mod player;
 //yt-dlp --version -> 2023.07.06
 fn main() -> Result<(), Box<dyn Error>> {
-    download_files()?;
-    download_music("https://youtu.be/MFF-diLFhtQ")?;
+    //download_files()?;
+    //download_music("https://youtu.be/MFF-diLFhtQ")?;
     play_music();
     Ok(())
 }
