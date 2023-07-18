@@ -1,42 +1,34 @@
-use download::{create_json_for_music, download_music, download_playlist};
-use player::play_music;
+use std::{error::Error, fs::File, io::Write, thread, time::Duration};
 
-use std::{error::Error, thread};
+use download::download_music;
+use id3::{Tag, TagLike};
+use metadata::create_metadata_from_link;
+
+use crate::metadata::create_metadata;
+
 mod download;
-mod player;
-//yt-dlp --version -> 2023.07.06
+mod get_info;
+mod metadata;
 fn main() -> Result<(), Box<dyn Error>> {
-    //download_files()?;
-    //download_music("https://youtu.be/MFF-diLFhtQ")?;
-    play_music();
-    Ok(())
-}
+    // let url = "https://soundcloud.com/sexballs/12-altars-of-apostasy-incl?in=chris-a-920974636/sets/ultrakill&si=e3d1f5114c684946934641675487830e&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing";
+    // download_music(url)?;
+    let url = "https://soundcloud.com/pinegroveband/need-2-1?si=f14cd3a326094f0f90786529da571165&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing";
+    thread::sleep(Duration::from_secs(3));
+    let path = "music/873257758/873257758.mp3";
+    create_metadata_from_link(url, path)?;
+    //create_metadata(path)?;
+    let tag = Tag::read_from_path(path).unwrap();
+    dbg!(tag.title());
+    dbg!(tag.year());
+    dbg!(tag.artist());
+    dbg!(tag.duration());
 
-fn download_files() -> Result<(), Box<dyn Error>> {
-    let url1 = "https://youtube.com/playlist?list=OLAK5uy_l2T3pMQk8o2vwT1ekRgrbzUkWEPfY8Iao";
-    let url2 = "https://youtube.com/playlist?list=OLAK5uy_nPFRFEwf39Xzib7AWl_exn2sqExrfFJwc";
-    let url3 = "https://www.youtube.com/watch?v=VZ-gmdcWWZs&t=144s";
-    let url4 = "https://www.youtube.com/watch?v=DUT5rEU6pqM";
-    // Spawn a new threads to download playlists at the same time
-    let handle1 = thread::spawn(|| {
-        download_playlist(url1, "1.json").expect("Couldnt download playlist");
-    });
-
-    let handle2 =
-        thread::spawn(|| download_playlist(url2, "2.json").expect("Couldnt download playlist"));
-
-    let handle3 = thread::spawn(|| download_music(url3).expect("Couldnt download playlist"));
-    let handle4 = thread::spawn(|| download_music(url4).expect("Couldnt download playlist"));
-    let handle5 = thread::spawn(|| {
-        download_music("https://youtu.be/Q_9VMaX61nI").expect("Couldnt download playlist")
-    });
-    // Wait for threads to complete
-    handle1.join().unwrap();
-    handle2.join().unwrap();
-    handle3.join().unwrap();
-    handle4.join().unwrap();
-    handle5.join().unwrap();
-
-    create_json_for_music()?;
+    if let Some(apic_frame) = tag.get("APIC") {
+        if let Some(picture) = apic_frame.content().picture() {
+            let image_data = &picture.data;
+            let mut file = File::create("cover.jpg").unwrap();
+            file.write_all(image_data).unwrap();
+        }
+    }
     Ok(())
 }

@@ -7,6 +7,7 @@ use std::thread::{self};
 
 use serde::{Deserialize, Serialize};
 
+use crate::get_info::get_info;
 type Url<'a> = &'a str;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -41,36 +42,6 @@ pub fn create_json_for_music() -> io::Result<()> {
     all_playlists_json.write_all(serde_json::to_string_pretty(&all_playlists)?.as_bytes())?;
 
     Ok(())
-}
-
-pub fn get_info(url: Url, split: &str, info: Vec<&str>) -> io::Result<HashMap<String, String>> {
-    println!("getting info {:?}, {:?}", info, url);
-    let mut param = String::new();
-    // Turn info to a usable format that yt-dlp can read
-    for (i, item) in info.iter().enumerate() {
-        param.push_str("%(");
-        param.push_str(item);
-        param.push_str(")s");
-
-        // Check if the current item is not the last
-        if i != info.len() - 1 {
-            param.push_str(split);
-        }
-    }
-    // Grab info
-    let cmd = Command::new("yt-dlp")
-        .args(vec![url, "--print", &param])
-        .output()?
-        .stdout;
-
-    let mut map = HashMap::new();
-
-    let data = String::from_utf8(cmd).expect("Could not grab string");
-    data.split(split).zip(info).for_each(|(c, i)| {
-        map.insert(i.to_string(), c.to_string());
-    });
-
-    Ok(map)
 }
 
 struct OutputSaver {
@@ -117,7 +88,7 @@ fn convert_opus(original: &str, new: &str) -> io::Result<()> {
             "-i",
             original,
             "-acodec",
-            "libvorbis",
+            "libmp3lame",
             new,
         ])
         .output()?;
@@ -130,7 +101,7 @@ fn convert_opus(original: &str, new: &str) -> io::Result<()> {
 pub fn download_music(url: Url) -> io::Result<()> {
     // Get info
     println!("Downloading: {url}");
-    let map = get_info(url, "<split>", vec!["id"]).expect("Couldnt grab info");
+    let map = get_info(url, vec!["id"]).expect("Couldnt grab info");
     let id = map.get("id").expect("Couldnt grab id from map").trim_end();
     // Check if music already exists
     //I would just use json here but im lazy
@@ -167,24 +138,18 @@ pub fn download_music(url: Url) -> io::Result<()> {
 
     //TODO Convert audio from opus to ogg
     let path = format!("music/{id}/{id}");
-    thread::spawn(move || convert_opus(&format!("{path}.opus"), &format!("{path}.ogg")));
+    thread::spawn(move || convert_opus(&path, &format!("{path}.mp3")));
     // Generate json info for the song
-    create_json(id)?;
+    println!("{id}");
+    println!("result: {:?}", create_json(id));
     Ok(())
 }
 
-pub fn create_json(url: Url) -> io::Result<()> {
+pub fn create_json(id: Url) -> io::Result<()> {
     // Grab info
-    let info = get_info(
-        url,
-        "<split>",
-        vec!["id", "title", "duration>%H:%M:%S", "channel", "webpage_url"],
-    )?;
+    let info = get_info(id,vec!["id", "title", "duration>%H:%M:%S", "channel", "webpage_url"]).unwrap();
 
     // Write info to file
-    let id = info
-        .get("id")
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Id not found"))?;
     let path = format!("music/{id}/info.json");
 
     let mut file = File::create(path)?;
@@ -195,10 +160,10 @@ pub fn create_json(url: Url) -> io::Result<()> {
 
 pub fn download_playlist(url: Url, path: &str) -> io::Result<()> {
     // Check if link is a playlist
-    if !url.contains("playlist") {
-        eprintln!("Non playlist url: {url}");
-        return Ok(());
-    }
+    // if !url.contains("playlist") {
+    //     eprintln!("Non playlist url: {url}");
+    //     return Ok(());
+    // }
 
     println!("Downloading: {}", url);
 
@@ -245,7 +210,7 @@ pub fn download_playlist(url: Url, path: &str) -> io::Result<()> {
     // Receive output on the consumer side and print each line
     let mut playlist_info = BTreeMap::new();
     for (i, v) in rx.iter().enumerate() {
-        let map = get_info(&v, "<split>", vec!["id"]).expect("Couldnt grab id");
+        let map = get_info(&v, vec!["id"]).expect("Couldnt grab id");
 
         let id = map
             .get("id")

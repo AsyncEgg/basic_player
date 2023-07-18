@@ -7,6 +7,7 @@ use std::{
     error::Error,
     fs::{self, File},
     io::BufReader,
+    path::Path,
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -94,9 +95,13 @@ fn get_files_from_json(json_path: &str) -> Vec<String> {
         .inner
         .values()
         .cloned()
-        .map(|id| format!("music/{id}/{id}.ogg"))
+        .map(|id| format!("music/{id}/{id}.mp3"))
         .collect()
 }
+fn get_duration(file_path: &str) -> Duration {
+    mp3_duration::from_path(Path::new(file_path)).unwrap()
+}
+
 //TODO FIX it so that when music is paused no other song plays whent he duration of the song finishes
 pub fn play_music() {
     println!("playing");
@@ -105,7 +110,7 @@ pub fn play_music() {
 
     let (_stream, stream_handle) = OutputStream::try_default().unwrap();
     let device_state = DeviceState::new();
-    let audio_files_bind = get_files_from_json("music/.playlists/1.json");
+    let audio_files_bind = get_files_from_json("music/.playlists/soundcloud.json");
     let audio_files: Vec<&str> = audio_files_bind.iter().map(|c| c.as_str()).collect();
 
     let mut current_audio_file_index = 0;
@@ -128,7 +133,8 @@ pub fn play_music() {
         let id = audio_files[current_audio_file_index]
             .split('/')
             .collect::<Vec<&str>>()[1];
-        let song_duration = duation_from_song_duration(&get_info_from_id(id).duration);
+        //let song_duration = duation_from_song_duration(&get_info_from_id(id).duration);
+        let song_duration = get_duration(audio_files[current_audio_file_index]).as_secs();
         let converted_song_duration = Duration::from_secs(song_duration);
         // let elapsed = format!("{:?}", now.elapsed());
         // println!("{elapsed}");
@@ -145,10 +151,11 @@ pub fn play_music() {
             now = Instant::now();
             saved_time = Duration::from_secs(0); // Reset saved_time when a new song starts
         }
-        println!(
-            "Elapsed: {:?}\nWhere to goto: {skip_amount}\nDuration: {song_duration}",
-            now.elapsed().as_secs()
-        );
+        // println!(
+        //     "Elapsed: {:?}\nWhere to goto: {skip_amount}\nDuration: {song_duration}\nFile: {}",
+        //     now.elapsed().as_secs(),
+        //     audio_files[current_audio_file_index]
+        // );
         let keys: Vec<Keycode> = device_state.get_keys();
         if keys.contains(&Keycode::F9) && last_space_press_time.elapsed() >= KEY_DEBOUNCE {
             toggle_playback(&mut sink);
