@@ -34,11 +34,35 @@ pub fn get_info(url: &str, info: Vec<&str>) -> Result<BTreeMap<String, String>, 
     Ok(organized_data)
 }
 
-pub fn get_mimetype_from_path(path: &str) -> Result<String, Box<dyn Error>> {
+pub fn get_mimetype_from_path(path: &str) -> String {
     //grab mimetype from file extention
     match path.split('.').last().unwrap() {
-        "jpeg" | "jpg" => Ok("image/jpeg".to_string()),
-        "svg" => Ok("image/svg+xml".to_string()),
-        ext => Ok(format!("image/{ext}")),
+        "jpeg" | "jpg" => "image/jpeg".to_string(),
+        "svg" => "image/svg+xml".to_string(),
+        ext => format!("image/{ext}"),
+    }
+}
+
+pub fn download_image_from_url(url: &str, image_path: &str) -> Result<(), Box<dyn Error>> {
+    //Download image
+    let image_path = remove_duplicate_extension(image_path);
+    Command::new("yt-dlp")
+        .args(vec![
+            url,
+            "-o",
+            &image_path,
+            "--write-thumbnail",
+            "--skip-download",
+        ])
+        .output()?;
+    Ok(())
+}
+fn remove_duplicate_extension(filename: &str) -> String {
+    let parts: Vec<&str> = filename.split('.').collect();
+    if parts.len() > 2 {
+        let new_parts = &parts[0..parts.len() - 1];
+        new_parts.join(".")
+    } else {
+        filename.to_string()
     }
 }

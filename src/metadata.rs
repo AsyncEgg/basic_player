@@ -4,124 +4,178 @@
 
 //todo create metadata from link
 
-use std::{error::Error, fs::File, io::Read};
+use std::{error::Error, fs::File, io::Read, path::Path};
 
 use id3::{
     frame::{Picture, PictureType},
-    Content, ErrorKind, Frame, Tag, TagLike, Version,
+    Content, Frame, Tag, TagLike, Version,
 };
 
-use crate::get_info::{get_info, get_mimetype_from_path};
+use crate::get_info::{download_image_from_url, get_info, get_mimetype_from_path};
 
-pub fn create_metadata_from_link(url: &str, path: &str) -> Result<(), Box<dyn Error>> {
-    //Check if these exist
-    if let Ok(existing_tag) = Tag::read_from_path(path) {
-        if existing_tag.title().is_some()
-            && existing_tag.year().is_some()
-            && existing_tag.artist().is_some()
-            && existing_tag.duration().is_some()
-            && existing_tag.pictures().next().is_some()
-        {
-            println!("Metadata Exists");
-            return Ok(());
+//todo create metadata from user input / random data
+#[derive(Clone)]
+pub struct Metadata {
+    path: String,
+    title: Option<String>,
+    upload_date: Option<i32>,
+    uploader: Option<String>,
+    image_path: Option<String>,
+    url: Option<String>,
+    duration: u32,
+}
+
+impl Metadata {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+            title: None,
+            upload_date: None,
+            uploader: None,
+            image_path: None,
+            url: None,
+            duration: mp3_duration::from_path(Path::new(path)).unwrap().as_secs() as u32,
         }
     }
 
-    println!("Creating metadata from: {url}");
-    //Get data from url
-    let info_res = get_info(
-        url,
-        vec!["title", "upload_date>%Y", "uploader", "duration", "id"],
-    );
-
-    let info = match info_res {
-        Ok(info) => info,
-        Err(err) => return Err(err),
-    };
-    // Get data from map
-    let id = info.get("id").ok_or("ID not found")?.trim();
-    let title = info.get("title").ok_or("Title not found")?;
-    let uploader = info.get("uploader").ok_or("Uploader not found")?;
-    let duration_txt = info.get("duration").ok_or("Duration not found")?;
-    let duration = duration_txt // Convert String to u32
-        .parse::<f32>()
-        .map_err(|_| "Duration not in correct format")?
-        .ceil() as u32;
-    let upload_date = info // Get year
-        .get("upload_date>%Y")
-        .ok_or("Upload date not found")?
-        .parse::<i32>()
-        .map_err(|_| "Invalid upload date format")?;
-
-    // Get path for art
-    let image_path = format!("music/{id}/{id}.png",);
-    println!("{image_path}");
-    let mime_type = get_mimetype_from_path(&image_path)?;
-
-    let mut file = File::open(image_path)?;
-    let mut buffer: Vec<u8> = Vec::new();
-    file.read_to_end(&mut buffer)?;
-
-    //todo add functionallity for png jpg webp etc
-    println!("pix");
-    let picture = Picture {
-        mime_type,
-        picture_type: PictureType::CoverFront,
-        description: "Album cover".to_string(),
-        data: buffer,
-    };
-
-    // Try to read existing tag from file, or create a new one if it doesn't exist
-    let mut tag = match Tag::read_from_path(path) {
-        Ok(existing_tag) => existing_tag,
-        Err(tag_error) => match tag_error.kind {
-            ErrorKind::NoTag => Tag::new(),
-            _ => return Err(Box::new(tag_error)),
-        },
-    };
-
-    // Only change the metadata if it doesn't exist
-    if tag.title().is_none() {
-        tag.set_title(title);
+    pub fn title(mut self, title: &str) -> Self {
+        self.title = Some(title.to_string());
+        self
     }
 
-    if tag.year().is_none() {
-        tag.set_year(upload_date);
+    pub fn upload_date(mut self, upload_date: i32) -> Self {
+        self.upload_date = Some(upload_date);
+        self
     }
 
-    if tag.artist().is_none() {
-        tag.set_artist(uploader);
+    pub fn uploader(mut self, uploader: &str) -> Self {
+        self.uploader = Some(uploader.to_string());
+        self
     }
 
-    if tag.duration().is_none() {
-        tag.set_duration(duration);
+    pub fn image_path(mut self, image_path: &str) -> Self {
+        self.image_path = Some(image_path.to_string());
+        self
     }
 
-    if tag.pictures().count() == 0 {
-        tag.add_frame(Frame::with_content("APIC", Content::Picture(picture)));
+    pub fn url(mut self, url: &str) -> Self {
+        self.url = Some(url.to_string());
+        self
     }
 
-    // Write tags back to file
-    tag.write_to_path(path, Version::Id3v24)?;
+    pub fn create_metadata_from_link(mut self) -> Result<(), Box<dyn Error>> {
+        match &self.url {
+            Some(_) => (),
+            None => return Err("No url in metadata".into()),
+        }
 
-    Ok(())
-}
+        //Check if these exist
+        if let Ok(existing_tag) = Tag::read_from_path(&self.path) {
+            if existing_tag.title().is_some()
+                && existing_tag.year().is_some()
+                && existing_tag.artist().is_some()
+                && existing_tag.duration().is_some()
+                && existing_tag.pictures().next().is_some()
+            {
+                println!("Metadata Exists");
+                return Ok(());
+            }
+        }
 
-//todo create metadata from user input / random data
+        let url = &self.url.clone().unwrap();
+        println!("Creating metadata from: {url}");
+        if self.url.is_some() {
+            let info_res = get_info(
+                url,
+                vec!["title", "upload_date>%Y", "uploader", "duration", "id"],
+            );
 
-pub fn create_metadata(path: &str) -> Result<(), Box<dyn Error>> {
-    println!("{path}");
-    let mut tag = Tag::new();
-    let title = path.split('/').last().ok_or("Item not found")?;
-    tag.set_title(title);
-    // tag.set_year(upload_date);
-    // tag.set_artist(uploader);
-    // tag.set_duration(duration);
-    // tag.add_frame(Frame::with_content("APIC", Content::Picture(picture)));
+            let info = info_res?;
 
-    tag.write_to_path(path, Version::Id3v24)?;
+            if self.title.is_none() {
+                self.title = info.get("title").map(|s| s.to_string());
+            }
 
-    Ok(())
+            if self.uploader.is_none() {
+                self.uploader = info.get("uploader").map(|s| s.to_string());
+            }
+
+            if self.upload_date.is_none() {
+                self.upload_date = info
+                    .get("upload_date>%Y")
+                    .and_then(|s| s.parse::<i32>().ok());
+            }
+
+            if self.image_path.is_none() {
+                // Downloading the image and setting the path in metadata
+                let id = info.get("id").ok_or("ID not found")?.trim();
+                let image_path = &format!(".temp/{}.jpg", id); //todo Improve this temporary image path name
+                download_image_from_url(url, image_path)?;
+                self.image_path = Some(image_path.to_string());
+            }
+        }
+
+        //write_metadata
+        self.write_metadata()?;
+
+        Ok(())
+    }
+
+    pub fn write_metadata(self) -> Result<(), Box<dyn Error>> {
+        // Get duration from path
+        let duration = mp3_duration::from_path(Path::new(&self.path))?.as_secs() as u32;
+
+        let placeholder_path = "assets/placeholder.png";
+        let (mut file, mime_type) = match &self.image_path {
+            // Check if there is image path
+            Some(image_path) => {
+                //Check if image can be opend
+                match File::open(image_path) {
+                    Ok(file) => (file, get_mimetype_from_path(image_path)),
+                    Err(_) => (
+                        File::open(placeholder_path)?, // Error opening return placeholder
+                        get_mimetype_from_path(placeholder_path),
+                    ),
+                }
+            }
+            None => (
+                // No image path return placeholder
+                File::open(placeholder_path)?,
+                get_mimetype_from_path(placeholder_path),
+            ),
+        };
+        let mut buffer: Vec<u8> = Vec::new();
+        file.read_to_end(&mut buffer)?;
+
+        let picture = Picture {
+            mime_type,
+            picture_type: PictureType::CoverFront,
+            description: "Album cover".to_string(),
+            data: buffer,
+        };
+
+        let mut tag = Tag::read_from_path(&self.path)?;
+
+        if let Some(title) = &self.title {
+            tag.set_title(title);
+        }
+        if let Some(upload_date) = self.upload_date {
+            tag.set_year(upload_date);
+        }
+        if let Some(uploader) = &self.uploader {
+            tag.set_artist(uploader);
+        }
+
+        tag.set_duration(duration); //Set duration since it is requred
+
+        if self.image_path.is_some() {
+            tag.add_frame(Frame::with_content("APIC", Content::Picture(picture)));
+        }
+
+        tag.write_to_path(&self.path, Version::Id3v24)?;
+
+        Ok(())
+    }
 }
 
 //todo function to allow people to change, titles, picture, etc
