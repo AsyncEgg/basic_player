@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fs::{self, create_dir, remove_file, File};
 use std::io::{self, BufRead, BufReader, Error, Write};
 use std::process::{ChildStdout, Command, Stdio};
@@ -8,7 +8,6 @@ use std::thread::{self};
 use serde::{Deserialize, Serialize};
 
 use crate::get_info::get_info;
-type Url<'a> = &'a str;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -98,7 +97,7 @@ fn convert_opus(original: &str, new: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub fn download_music(url: Url) -> io::Result<()> {
+pub fn download_music(url: &str) -> io::Result<()> {
     // Get info
     println!("Downloading: {url}");
     let map = get_info(url, vec!["id"]).expect("Couldnt grab info");
@@ -145,9 +144,13 @@ pub fn download_music(url: Url) -> io::Result<()> {
     Ok(())
 }
 
-pub fn create_json(id: Url) -> io::Result<()> {
+pub fn create_json(id: &str) -> io::Result<()> {
     // Grab info
-    let info = get_info(id,vec!["id", "title", "duration>%H:%M:%S", "channel", "webpage_url"]).unwrap();
+    let info = get_info(
+        id,
+        vec!["id", "title", "duration>%H:%M:%S", "channel", "webpage_url"],
+    )
+    .unwrap();
 
     // Write info to file
     let path = format!("music/{id}/info.json");
@@ -158,7 +161,7 @@ pub fn create_json(id: Url) -> io::Result<()> {
     Ok(())
 }
 
-pub fn download_playlist(url: Url, path: &str) -> io::Result<()> {
+pub fn download_playlist(url: &str, path: &str) -> io::Result<()> {
     // Check if link is a playlist
     // if !url.contains("playlist") {
     //     eprintln!("Non playlist url: {url}");

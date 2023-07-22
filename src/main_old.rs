@@ -1,8 +1,11 @@
 use download::{create_json_for_music, download_music, download_playlist};
+use metadata::Metadata;
 use player::play_music;
 
 use std::{error::Error, thread};
 mod download;
+mod get_info;
+mod metadata;
 mod player;
 //yt-dlp --version -> 2023.07.06
 fn main() -> Result<(), Box<dyn Error>> {
@@ -10,7 +13,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // download_playlist("https://soundcloud.com/emiliano-gonzalez-312485981/sets/i-probably-dont-have-autism?si=cc82f79544f743c988d4bbb7435cf880&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing",
     // "soundcloud.json")?;
-    play_music();
+    let url = "https://soundcloud.com/king-gizzard-the-lizard-wizard/dragon?in=king-gizzard-the-lizard-wizard/sets/petrodragonic-apocalypse-or&si=4222b03b82574859bc39f0fae5cced3c&utm_source=clipboard&utm_medium=text&utm_campaign=social_sharing";
+    Metadata::new("songs/Dragon [1526029687].mp3")
+        .url(url)
+        .create_metadata_from_link()?;
+
+    //play_music();
     Ok(())
 }
 
